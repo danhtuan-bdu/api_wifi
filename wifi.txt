@@ -1,0 +1,91 @@
+
+I.UniFi Controller (self-hosted hoặc CloudKey):
+1. Login để lấy session cookie:
+$session = New-Object Microsoft.PowerShell.Commands.WebRequestSession
+$body = @{
+    username = 'admin'
+    password = 'your_password'
+} | ConvertTo-Json
+
+Invoke-WebRequest -Uri "https://<controller-ip>:8443/api/login" -Method POST -Body $body -ContentType "application/json" -WebSession $session
+
+2. Lấy danh sách thiết bị 
+Invoke-WebRequest -Uri "https://<controller-ip>:8443/api/s/default/stat/device" -WebSession $session
+
+II. Cloud UniFi (via https://unifi.ui.com):
+
+vì UniFi Cloud yêu cầu OAuth session/token qua login.
+
+==> Cần thực hiện:
+
+- Login qua email/password để lấy access_token
+
+- Gọi tiếp các API nội bộ (/proxy/network/api/s/<site>/stat/device)
+
+
+
+datuan.bdu
+*Bdu@cds2025
+
+
+# UniFi Controller via domain
+$controller = "https://net.bdu.edu.vn:8443"
+$username = "datuan.bdu"           # change to your real username
+$password = "*Bdu@cds2025"   # change to your real password
+
+# Create session
+$session = New-Object Microsoft.PowerShell.Commands.WebRequestSession
+
+# Login body
+$body = @{
+    username = "datuan"
+    password = "*Bdu@cds2025"
+    remember = $true
+    strict   = $true
+} | ConvertTo-Json -Compress
+
+
+# Log in
+$response = Invoke-WebRequest -Uri "$controller/api/login" `
+                              -Method POST `
+                              -Body $body `
+                              -ContentType "application/json" `
+                              -WebSession $session `
+                              -SkipCertificateCheck
+
+# Get devices
+$devices = Invoke-RestMethod -Uri "$controller/api/s/default/stat/device" `
+                             -Method GET `
+                             -WebSession $session `
+                             -SkipCertificateCheck
+
+# Display results
+$devices.data
+
+https://net.bdu.edu.vn:8443
+
+# Bắt buộc dùng TLS 1.2
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+[System.Net.ServicePointManager]::ServerCertificateValidationCallback = { $true }
+
+# Controller thông tin
+$controller = "https://net.bdu.edu.vn:8443"
+$session = New-Object Microsoft.PowerShell.Commands.WebRequestSession
+
+# Chuỗi JSON login – viết tay!
+$body = '{"username":"datuan","password":"*Bdu@cds2025","remember":true}'
+
+# Headers cần thiết
+$headers = @{
+    "User-Agent" = "Mozilla/5.0"
+    "Referer" = "$controller/login"
+    "X-Requested-With" = "XMLHttpRequest"
+}
+
+# Gửi yêu cầu đăng nhập
+$response = Invoke-WebRequest -Uri "$controller/api/login" `
+                              -Method POST `
+                              -Body $body `
+                              -ContentType "application/json" `
+                              -Headers $headers `
+                              -WebSession $session

@@ -1,0 +1,83 @@
+# ===========================
+# STEP 0: Cấu hình bảo mật và bỏ kiểm SSL
+# ===========================
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+[System.Net.ServicePointManager]::ServerCertificateValidationCallback = { $true }
+
+# ===========================
+# STEP 1: Thông tin Controller và tài khoản
+# ===========================
+$controller = "https://192.168.88.50:8443"
+$username   = "datuan"
+$password   = "*Bdu@cds2025"
+$session    = New-Object Microsoft.PowerShell.Commands.WebRequestSession
+
+# ===========================
+# STEP 2: Body dạng chuỗi JSON (không dùng ConvertTo-Json)
+# ===========================
+$body = '{"username":"datuan","password":"*Bdu@cds2025","remember":true}'
+
+# ===========================
+# STEP 3: Headers như trình duyệt thật
+# ===========================
+$headers = @{
+    "User-Agent"        = "Mozilla/5.0"
+    "Referer"           = "$controller/login"
+    "X-Requested-With"  = "XMLHttpRequest"
+}
+
+# ===========================
+# STEP 4: Đăng nhập vào controller
+# ===========================
+try {
+    $login = Invoke-WebRequest -Uri "$controller/api/login" `
+                               -Method POST `
+                               -Body $body `
+                               -ContentType "application/json" `
+                               -Headers $headers `
+                               -WebSession $session
+    Write-Host "✅ Đăng nhập thành công!" -ForegroundColor Green
+} catch {
+    Write-Host "❌ Lỗi khi đăng nhập: $($_.Exception.Message)" -ForegroundColor Red
+    return
+}
+
+# ===========================
+# STEP 5: Lấy danh sách thiết bị
+# ===========================
+try {
+    $devices = Invoke-RestMethod -Uri "$controller/api/s/default/stat/device" `
+                                 -Method GET `
+                                 -WebSession $session
+    Write-Host "✅ Đã lấy danh sách thiết bị!" -ForegroundColor Green
+} catch {
+    Write-Host "❌ Không thể lấy danh sách thiết bị: $($_.Exception.Message)" -ForegroundColor Red
+    return
+}
+
+# ===========================
+# STEP 6: Gắn trạng thái Online / Offline
+# ===========================
+$deviceList = $devices.data | ForEach-Object {
+    [PSCustomObject]@{
+        Name    = $_.name
+        IP      = $_.ip
+        MAC     = $_.mac
+        Type    = $_.type
+        Version = $_.version
+        Status  = if ($_.state -eq 1) { "Online" } else { "Offline" }
+    }
+}
+
+# ===========================
+# STEP 7: Hiển thị danh sách thiết bị lên PowerShell
+# ===========================
+Write-Host "`n📋 Danh sách thiết bị UniFi (hiển thị trước khi ghi file):" -ForegroundColor Cyan
+$deviceList | Format-Table -AutoSize
+
+# ===========================
+# STEP 8: Ghi ra file CSV
+# ===========================
+$csvPath = "unifi_devices_status.csv"
+$deviceList | Export-Csv -Path $csvPath -NoTypeInformation -Encoding UTF8
+Write-Host "`n✅ File CSV đã được tạo: $csvPath" -ForegroundColor Yellow
